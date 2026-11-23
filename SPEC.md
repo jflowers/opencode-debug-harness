@@ -1,12 +1,12 @@
 # opencode-debug-harness — Specification
 
-- **Status:** Proposed (spec only; nothing is implemented)
+- **Status:** Accepted 2026-11-23 (spec only; nothing is implemented)
 - **Date:** 2026-11-19
 - **Target runtime:** OpenCode 1.19.0, `@opencode-ai/plugin` 1.19.0 (Bun runtime, `bun:sqlite`)
 - **Sibling:** `jflowers/opencode-research-harness` (same shape: plugin-enforced discipline, ledger, gate, ratchet, export). Hook facts below are taken from that spec's §3.4, which was checked against 1.19.0.
 - **Requires:** a git work tree (v1).
 
-This document has four parts: **Part 1 — ADR-001**, **Part 2 — PRD**, **Part 3 — Technical specification**, **Part 4 — Decisions** (proposed, each with a recommendation, not yet accepted).
+This document has four parts: **Part 1 — ADR-001**, **Part 2 — PRD**, **Part 3 — Technical specification**, **Part 4 — Decisions** (D1–D9, accepted 2026-11-23).
 
 ---
 
@@ -430,9 +430,11 @@ Same 1.19.0 contract as the research harness (§3.4 there).
 
 ---
 
-# Part 4 — Decisions (proposed)
+# Part 4 — Decisions
 
-| # | Question | Recommendation | Why |
+Accepted 2026-11-23 (Jay accepted the recommendations as written).
+
+| # | Question | Decision | Why |
 |---|---|---|---|
 | D1 | Reset mechanism: in-place snapshot or worktree per experiment | **In place**, with git-object snapshots (§3.5). Worktree only for bisect. | Dev servers, watchers, IDE state, ignored files (`.env`, `node_modules`) and absolute-path tooling all live in the real tree. A worktree per experiment breaks the repro for exactly the bugs that depend on environment. Verification after reset gives the safety a worktree would. |
 | D2 | Auto-reset at experiment end, or separate step | **Automatic** inside `debug_experiment_end`. | Reset is the step most likely to be skipped; making it part of recording the result removes the choice. `debug_rebaseline` covers the case where you want to keep something. |
