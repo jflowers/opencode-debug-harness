@@ -428,6 +428,28 @@ Same 1.19.0 contract as the research harness (§3.4 there).
 4. Phase 2: breaker, bisect, flaky mode refinements, Dewey export, `reportDir`, supervisor directive.
 5. Extract the shared core with the research harness (D7) once both have run for a few weeks.
 
+## 3.13 Phase 1 as built (2026-11-23)
+
+Phase 1 implements FR-O, FR-H, FR-X (except FR-X9 bisect), FR-C, FR-S, the FR-R2 report and FR-R3 `reportDir`. Where the build differs from the text above, this section wins:
+
+| Topic | Spec text | As built | Why |
+|---|---|---|---|
+| Store (§3.4) | One SQLite file per work tree, column-per-field tables, `lock` file | **One** `debug.sqlite` under `stateDir`. Tables keep a JSON `data` column; a partial unique index (`worktree WHERE state != 'closed'`) is the one-investigation-per-work-tree lock. Artifacts stay per work tree: `<stateDir>/<sha1(realpath)[:16]>/<investigation>/{logs,patches,files,tmp,report.md}`. | One DB lets a hook find a session's investigation with one indexed lookup. A unique index is atomic across processes, which a lock file isn't. |
+| Session binding | Implicit | `sessions(session_id → investigation_id)`. Subagents inherit on `session.created`; supervisor side sessions never bind. **`debug_attach`** (new tool) rebinds an open investigation to the current session. | Crash recovery and new sessions (NFR crash-safe). |
+| Repro shell (FR-O2) | `bash -lc` | `bash -c`, process group killed on timeout | A login shell re-sources the profile on every run (slow, noisy output); opencode's environment already has `PATH`. |
+| Reset verification (§3.5) | `baselineRuns` | New option **`verifyRuns`** (default 1), or `flakyRuns` when flaky | Determinism is already established by the N baseline runs; 3× on every reset makes each experiment cost 4 repro runs. |
+| Snapshot index (§3.5) | Copy the real index into a temp index | Same, **and the copy keeps the real index's mtime** | Racy git: with a fresh mtime git trusts stale stat data, and a same-size edit made in the same second (`i = 1` → `i = 0`) is invisible to the snapshot. Found by the test suite; regression test in `test/unit.test.ts`. |
+| Starting an experiment (FR-X2) | `ready` | `ready` **and** the tree equals the current baseline; otherwise → `diverged` naming the files | Catches changes made outside the harness (shell, IDE) before they contaminate an experiment. |
+| Locked files (FR-O8) | Edits rejected | Also re-hashed at `debug_experiment_end`; a change (e.g. via shell) makes the verdict `inconclusive` | Shell commands can't be scoped by path. |
+| Edits outside the work tree | Unspecified | Rejected during an investigation | The harness can't reset them. |
+| Forbidden git (§3.2) | — | Adds `git add`, `rm`, `mv`, `update-index`, `gc`, `prune`, `worktree remove` | The real index must not change during an investigation. |
+| Flaky red (FR-O6) | Rate-based | Any red in `flakyRuns` = red; all green = green; else other | Simple and conservative until real flaky cases show the need. |
+| Guard (FR-O7) | Per-test parsing | Exit code only. "No worse" = passed at baseline → must pass. A guard that failed at baseline is reported as not comparable. | Per-test parsing is Phase 2. |
+| Conclusion states (§3.3) | `concluding` state | No `concluding` state. `fixed` runs the proof inside one serialized call; a failed proof restores the current baseline, verifies it, and returns to `ready` (or `diverged`). | No intermediate state to recover from. |
+| Hooks (§3.8) | `dispose` keeps the lock | Lock is the DB row, so nothing to release | — |
+
+Deferred to Phase 2: circuit breaker (FR-B), `debug_bisect` (FR-X9), Dewey export (FR-R4), the supervisor directive, per-test guard parsing, and wire checks (§3.8) on a live opencode 1.19.0 session.
+
 ---
 
 # Part 4 — Decisions
