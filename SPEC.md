@@ -12,7 +12,7 @@ This document has four parts: **Part 1 — ADR-001**, **Part 2 — PRD**, **Part
 
 # Part 1 — ADR-001: Plugin-enforced scientific debugging loop
 
-- **Status:** Proposed
+- **Status:** Accepted 2026-11-23
 
 ## 1. Context
 
