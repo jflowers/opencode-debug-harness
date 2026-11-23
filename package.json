@@ -1,0 +1,21 @@
+{
+  "name": "@jflowers/opencode-debug-harness",
+  "version": "0.1.0",
+  "description": "opencode plugin: hypothesis / experiment / verified-reset debugging loop with a toggle-proof conclusion gate",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    "./server": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 120000"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "1.19.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "typescript": "^7.0.2"
+  }
+}
