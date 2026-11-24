@@ -6,6 +6,7 @@ import { worktreeRoot } from "./git"
 import { DebugHarness } from "./harness"
 import { isSupervisorSideSession, registerLoad, releaseLoad } from "./shared-state"
 import { addNote, type ToolOutput } from "./tool-output"
+import { type ArgsOf, parseArgs, type Shape } from "./args"
 
 export { DebugHarness } from "./harness"
 export { Rejection } from "./errors"
@@ -53,6 +54,17 @@ function sessionIdOf(messages: { info?: { sessionID?: unknown } }[]): string | u
   return undefined
 }
 
+type ToolContext = Parameters<Parameters<typeof tool>[0]["execute"]>[1]
+
+/** `tool()` with schema validation (see parseArgs) and rejections returned as text. */
+function def<A extends Shape>(spec: { description: string; args: A; run(args: ArgsOf<A>, ctx: ToolContext): Promise<string> | string }) {
+  return tool({
+    description: spec.description,
+    args: spec.args,
+    execute: (raw, ctx) => guarded(() => spec.run(parseArgs(spec.args, raw), ctx)),
+  })
+}
+
 let injectSeq = 0
 
 /** Builds the hooks for one work tree. Exported for tests. */
@@ -80,7 +92,7 @@ export function createHarness(h: DebugHarness): Hooks {
 
   return {
     tool: {
-      debug_open: tool({
+      debug_open: def({
         description:
           "Open a debugging investigation: lock a repro command, run it several times on the untouched tree, and record the baseline failure fingerprint. After this, edits are only allowed inside experiments.",
         args: {
@@ -91,19 +103,19 @@ export function createHarness(h: DebugHarness): Hooks {
             .optional()
             .describe("Pass-to-pass check, e.g. the test suite; must be no worse after a fix"),
         },
-        execute: (args, ctx) => guarded(() => h.open(ctx.sessionID, args)),
+        run: (args, ctx) => h.open(ctx.sessionID, args),
       }),
-      debug_attach: tool({
+      debug_attach: def({
         description: "Attach this session to the investigation already open in this work tree (e.g. after a crash or a new session).",
         args: {},
-        execute: (_a, ctx) => guarded(() => h.attach(ctx.sessionID)),
+        run: (_a, ctx) => h.attach(ctx.sessionID),
       }),
-      debug_refine_repro: tool({
+      debug_refine_repro: def({
         description: "Replace the repro (narrower command, better failSignature). Re-runs the baseline and re-derives the fingerprint. Only between experiments.",
         args: { repro: reproSchema, reason: s.string().min(5) },
-        execute: (args, ctx) => guarded(() => h.refineRepro(ctx.sessionID, args.repro, args.reason)),
+        run: (args, ctx) => h.refineRepro(ctx.sessionID, args.repro, args.reason),
       }),
-      debug_hypothesize: tool({
+      debug_hypothesize: def({
         description:
           "Record a hypothesis with a mechanism and a prediction the repro can check. The harness, not you, sets its status from experiment results.",
         args: {
@@ -115,14 +127,14 @@ export function createHarness(h: DebugHarness): Hooks {
           }),
           falsifier: s.string().min(5).describe("Which observation would show this hypothesis is wrong"),
         },
-        execute: (args, ctx) => guarded(() => h.hypothesize(ctx.sessionID, args)),
+        run: (args, ctx) => h.hypothesize(ctx.sessionID, args),
       }),
-      debug_hypothesis_note: tool({
+      debug_hypothesis_note: def({
         description: "Append an interpretation note to a hypothesis without changing its status.",
         args: { hypothesis_id: s.string(), text: s.string().min(3) },
-        execute: (args, ctx) => guarded(() => h.note(ctx.sessionID, args.hypothesis_id, args.text)),
+        run: (args, ctx) => h.note(ctx.sessionID, args.hypothesis_id, args.text),
       }),
-      debug_experiment_start: tool({
+      debug_experiment_start: def({
         description:
           "Open an experiment for one hypothesis. Snapshots nothing new: experiments always start from the baseline. Edits are then allowed only inside `scope`.",
         args: {
@@ -134,36 +146,36 @@ export function createHarness(h: DebugHarness): Hooks {
             .optional()
             .describe("State outside git that this experiment changes (database, .env, services) and how to reset it"),
         },
-        execute: (args, ctx) => guarded(() => h.start(ctx.sessionID, args)),
+        run: (args, ctx) => h.start(ctx.sessionID, args),
       }),
-      debug_run: tool({
+      debug_run: def({
         description: "Run the repro now (harness-observed) and get the outcome, fingerprint, last lines and a log_ref. Optionally run the guard too.",
         args: { guard: s.boolean().optional() },
-        execute: (args, ctx) => guarded(() => h.run(ctx.sessionID, args.guard ?? false)),
+        run: (args, ctx) => h.run(ctx.sessionID, args.guard ?? false),
       }),
-      debug_experiment_end: tool({
+      debug_experiment_end: def({
         description:
           "End the open experiment: the harness runs the repro, compares it with the prediction, saves the patch, resets the tree to the baseline and verifies the repro is red again.",
         args: { interpretation: s.string().min(5).describe("What you make of the observation") },
-        execute: (args, ctx) => guarded(() => h.end(ctx.sessionID, args.interpretation)),
+        run: (args, ctx) => h.end(ctx.sessionID, args.interpretation),
       }),
-      debug_experiment_abort: tool({
+      debug_experiment_abort: def({
         description: "Abandon the open experiment without a verdict and reset to the baseline.",
         args: { reason: s.string().min(3) },
-        execute: (args, ctx) => guarded(() => h.abort(ctx.sessionID, args.reason)),
+        run: (args, ctx) => h.abort(ctx.sessionID, args.reason),
       }),
-      debug_reset: tool({
+      debug_reset: def({
         description: "Retry resetting the work tree to the baseline and verifying it (after a failed reset).",
         args: { confirm: s.boolean().optional().describe("Discard changes the experiment didn't make") },
-        execute: (args, ctx) => guarded(() => h.reset(ctx.sessionID, args.confirm ?? false)),
+        run: (args, ctx) => h.reset(ctx.sessionID, args.confirm ?? false),
       }),
-      debug_rebaseline: tool({
+      debug_rebaseline: def({
         description:
           "Make a past experiment's change (e.g. instrumentation) part of the baseline, or accept a diverged tree as the baseline. The repro must still be red.",
         args: { reason: s.string().min(5), from_experiment: s.string().optional() },
-        execute: (args, ctx) => guarded(() => h.rebaseline(ctx.sessionID, args.reason, args.from_experiment)),
+        run: (args, ctx) => h.rebaseline(ctx.sessionID, args.reason, args.from_experiment),
       }),
-      debug_conclude: tool({
+      debug_conclude: def({
         description:
           "Conclude. fixed: the harness proves the fix by toggling it (red → green → red → green, guard no worse) and leaves it applied. understood: needs a supported hypothesis. abandoned: always allowed.",
         args: {
@@ -173,17 +185,17 @@ export function createHarness(h: DebugHarness): Hooks {
           hypothesis_ids: s.array(s.string()).optional(),
           fix_experiment: s.string().optional().describe("For fixed: the supported intervention experiment"),
         },
-        execute: (args, ctx) => guarded(() => h.conclude(ctx.sessionID, args)),
+        run: (args, ctx) => h.conclude(ctx.sessionID, args),
       }),
-      debug_status: tool({
+      debug_status: def({
         description: "Show the investigation: repro, fingerprint, hypotheses, experiments and the next allowed step.",
         args: {},
-        execute: (_a, ctx) => guarded(() => h.status(ctx.sessionID)),
+        run: (_a, ctx) => h.status(ctx.sessionID),
       }),
-      debug_close: tool({
+      debug_close: def({
         description: "Close the investigation as abandoned from any state. By default restores the work tree to how it was at debug_open.",
         args: { reason: s.string().min(5), restore: s.boolean().optional() },
-        execute: (args, ctx) => guarded(() => h.close(ctx.sessionID, args.reason, args.restore ?? true)),
+        run: (args, ctx) => h.close(ctx.sessionID, args.reason, args.restore ?? true),
       }),
     },
 
