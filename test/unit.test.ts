@@ -191,6 +191,10 @@ test("tool args: JSON-encoded objects are decoded, real schema errors are report
   // nested expect as a string inside a string
   const p2 = JSON.stringify({ intervention: "log the index", expect: JSON.stringify({ outputMatches: "idx 0" }) })
   expect(await call("debug_hypothesize", { ...base, statement: "first index is skipped", prediction: p2 })).toContain("Recorded h2")
+  // invalid JSON escape from a regex (GLM 5.3, live run 2): `\d` is not a JSON escape
+  const p3 = '{"intervention": "make it /^(\\d+[hms])+$/ without g", "expect": "green"}'
+  expect(p3).toContain("(\\d")
+  expect(await call("debug_hypothesize", { ...base, statement: "regex state leaks between calls", prediction: p3 })).toContain("Recorded h3")
   // genuinely wrong
   const bad = await call("debug_hypothesize", { ...base, statement: "something else entirely", prediction: { intervention: "x = 1", expect: "maybe" } })
   expect(bad).toContain("Invalid arguments")

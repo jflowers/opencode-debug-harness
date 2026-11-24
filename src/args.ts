@@ -21,6 +21,22 @@ function setAt(root: Record<PropertyKey, unknown>, path: Path, value: unknown): 
 }
 
 /**
+ * JSON.parse, then a retry with invalid escapes doubled. Models write regexes
+ * like `\d` inside JSON strings; that is invalid JSON, so opencode can't parse
+ * the call and hands the argument over as raw text.
+ */
+function decodeJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {}
+  try {
+    return JSON.parse(text.replace(/\\(?!["\\/bfnrtu])/g, "\\\\"))
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Validates tool args against their schema. opencode 1.19.0 hands args to
  * `execute` without validating them, and some models send an object or array
  * argument as a JSON-encoded string. Strings that fail validation where JSON is
@@ -38,10 +54,11 @@ export function parseArgs<A extends Shape>(shape: A, raw: unknown): ArgsOf<A> {
       if (issue.path.length === 0) continue
       const v = getAt(value, issue.path)
       if (typeof v !== "string" || !/^\s*[[{]/.test(v)) continue
-      try {
-        setAt(value, issue.path, JSON.parse(v))
+      const parsed = decodeJson(v)
+      if (parsed !== undefined) {
+        setAt(value, issue.path, parsed)
         decoded = true
-      } catch {}
+      }
     }
     if (!decoded) {
       const issues = r.error.issues.map((i) => `${i.path.join(".") || "(args)"}: ${i.message}`).join("; ")
