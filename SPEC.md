@@ -447,8 +447,9 @@ Phase 1 implements FR-O, FR-H, FR-X (except FR-X9 bisect), FR-C, FR-S, the FR-R2
 | Guard (FR-O7) | Per-test parsing | Exit code only. "No worse" = passed at baseline → must pass. A guard that failed at baseline is reported as not comparable. | Per-test parsing is Phase 2. |
 | Conclusion states (§3.3) | `concluding` state | No `concluding` state. `fixed` runs the proof inside one serialized call; a failed proof restores the current baseline, verifies it, and returns to `ready` (or `diverged`). | No intermediate state to recover from. |
 | Hooks (§3.8) | `dispose` keeps the lock | Lock is the DB row, so nothing to release | — |
+| Tool args | Validated by opencode | **Validated by the harness** (`src/args.ts`): object and array args sent as JSON strings are decoded, then checked against the schema; real errors name the field. | opencode 1.19.0 doesn't validate tool args. In the first live run GLM 5.3 sent `prediction` as a string three times, and the old message ("prediction.expect is required") sent it chasing a wrong cause. |
 
-Deferred to Phase 2: circuit breaker (FR-B), `debug_bisect` (FR-X9), Dewey export (FR-R4), the supervisor directive, per-test guard parsing, and wire checks (§3.8) on a live opencode 1.19.0 session.
+Deferred to Phase 2: circuit breaker (FR-B), `debug_bisect` (FR-X9), Dewey export (FR-R4), the supervisor directive, and per-test guard parsing. Wire checks (§3.8) passed in a live opencode 1.19.0 run on 2026-11-24: `/debug` → open → hypothesize → experiment → verified reset → `fixed` with the toggle proof, snapshot refs removed afterwards.
 
 ---
 

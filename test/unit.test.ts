@@ -173,3 +173,27 @@ test("debug_open refuses a directory that isn't a git work tree", async () => {
   const ctx = { sessionID: "s1", directory: dir, worktree: dir } as never
   expect(await hooks.tool!.debug_open!.execute({ symptom: "something broke", repro: { cmd: "false" } } as never, ctx)).toContain("needs a git work tree")
 })
+
+test("tool args: JSON-encoded objects are decoded, real schema errors are reported", async () => {
+  const repo = makeRepo()
+  cleanups.push(() => repo.cleanup())
+  const hooks = await plugin.server(input(repo.dir), { stateDir: repo.state, baselineRuns: 1 })
+  cleanups.push(() => void hooks.dispose?.())
+  const ctx = { sessionID: "s1", directory: repo.dir, worktree: repo.dir } as never
+  const call = (name: string, args: unknown) => hooks.tool![name]!.execute(args as never, ctx) as Promise<string>
+
+  // repro as a string (seen from GLM 5.3 in a live run)
+  expect(await call("debug_open", { symptom: "total() drops the first item", repro: JSON.stringify(REPRO) })).toContain("Opened")
+  const base = { statement: "loop starts at index 1", mechanism: "the first item is never added", falsifier: "starting at 0 stays red" }
+  // prediction as a string, containing a regex escape
+  const p1 = JSON.stringify({ intervention: "start the loop at 0 instead of /\\d+/ 1", expect: "green" })
+  expect(await call("debug_hypothesize", { ...base, prediction: p1 })).toContain("Recorded h1")
+  // nested expect as a string inside a string
+  const p2 = JSON.stringify({ intervention: "log the index", expect: JSON.stringify({ outputMatches: "idx 0" }) })
+  expect(await call("debug_hypothesize", { ...base, statement: "first index is skipped", prediction: p2 })).toContain("Recorded h2")
+  // genuinely wrong
+  const bad = await call("debug_hypothesize", { ...base, statement: "something else entirely", prediction: { intervention: "x = 1", expect: "maybe" } })
+  expect(bad).toContain("Invalid arguments")
+  expect(bad).toContain("prediction.expect")
+  expect(await call("debug_experiment_start", { hypothesis_id: "h1", kind: "intervention", scope: '["src/total.ts"]' })).toContain("Experiment e1 open")
+})
