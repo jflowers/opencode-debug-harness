@@ -1,5 +1,6 @@
 import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
+import { registerAssets } from "./assets"
 import { loadConfig } from "./config"
 import { type Logger, Rejection } from "./errors"
 import { worktreeRoot } from "./git"
@@ -91,6 +92,7 @@ export function createHarness(h: DebugHarness): Hooks {
   ])
 
   return {
+    config: async (opencodeConfig) => registerAssets(opencodeConfig),
     tool: {
       debug_open: def({
         description:

@@ -16,19 +16,18 @@ See [SPEC.md](SPEC.md) for the design, and §3.13 there for how Phase 1 differs 
 ```jsonc
 {
   "plugin": [
-    "/Users/jflowers/Projects/github/jflowers/opencode-debug-harness/src/index.ts"
-    // or with options: ["/…/src/index.ts", { "reportDir": "docs/debugging" }]
+    "opencode-debug-harness"
+    // or with options: ["opencode-debug-harness", { "reportDir": "docs/debugging" }]
   ]
 }
 ```
 
-Link the agent, skill and command:
-
-```bash
-ln -s "$PWD/agents/debugger.md" ~/.config/opencode/agents/debugger.md
-ln -s "$PWD/skills/debug-loop" ~/.config/opencode/skills/debug-loop
-ln -s "$PWD/commands/debug.md" ~/.config/opencode/commands/debug.md
-```
+The plugin registers its `debugger` agent, `/debug` command and `debug-loop`
+skill itself; there is nothing to link into `~/.config/opencode`. A
+`debugger` entry in your own config is layered over the bundled one, so you
+can change its model or permissions and keep its prompt. To run a checkout
+instead of the release, `bun install` in it and list its `src/index.ts` by
+absolute path in place of the package name.
 
 Then, in any git repo, run `/debug <symptom>` or switch to the `debugger` agent.
 
